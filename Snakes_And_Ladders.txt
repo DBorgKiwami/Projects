@@ -1,0 +1,193 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+struct boardSpace{
+    int position;
+    char onSpace[10];
+    //Jump refers to the space that this space "Jumps" to. Essentially, Ladder or Snake.
+    struct boardSpace* jump;
+    struct boardSpace* next;
+};
+
+void add(struct boardSpace* traverse, int position){
+    while(traverse->next != NULL)
+        traverse = traverse->next;
+    struct boardSpace *toAdd;
+    toAdd = malloc(sizeof(struct boardSpace));
+    toAdd->position = position;
+    toAdd->next = 0;
+    toAdd->jump = NULL;
+    traverse->next = toAdd;
+}
+
+void addSnake(struct boardSpace* addedTo, struct boardSpace* start){
+    int snakeTo;
+    //Making sure that the position is within bounds for random of 10. If not, take lower bound minimum instead
+    if(addedTo->position > 10)
+        snakeTo = addedTo->position - (2 + (rand() % 10));
+    else
+        snakeTo = addedTo->position - (2 + (rand() % addedTo->position));
+    for(int i = 0; i < snakeTo; i++)
+                start = start->next;
+    addedTo->jump = start;
+    //For ease of Readability when printing to file
+    strcpy(addedTo->onSpace, "Snake!");
+    //printf("Snake!\n");
+}
+
+void addLadder(struct boardSpace* addedTo, int boardSize){
+    int ladderTo;
+    //Making sure that the position is within bounds for random of 10. If not, take higher bound maximum instead
+    if((boardSize-addedTo->position) > 10)
+        ladderTo = 1 + rand() % 10;
+    else
+        ladderTo = 1 + (rand() % (boardSize - addedTo->position));
+    struct boardSpace* traverse = addedTo;
+    for(int i = 0; i < ladderTo; i++)
+        traverse = traverse->next;
+    addedTo->jump = traverse;
+    //For ease of Readability when printing to file
+    strcpy(addedTo->onSpace, "Ladder!");
+    //printf("Ladder!\n");
+}
+
+//Unused in Final Program, left as option for regular board print
+void printBoard(struct boardSpace* traverse){
+    while(traverse != NULL){
+        if(traverse->jump == NULL)
+            printf("%d\n", traverse->position);
+        else
+            printf("%d || %d || %s\n", traverse->position, traverse->jump->position, traverse->onSpace);
+        traverse = traverse->next;
+    }
+    printf("\n");
+}
+
+void printBoardToFile(struct boardSpace* traverse, int space, FILE *printTo){
+    while(traverse != NULL){
+        if(traverse->jump == NULL){
+            //Print as regular space
+            if(traverse->position == space)
+                fprintf(printTo, "%d <<\n", traverse->position);
+            else
+                fprintf(printTo, "%d \n", traverse->position);
+        }
+        else{
+            //Print as Snake/Ladder space
+            if(traverse->position == space)
+                fprintf(printTo, "%d || %d || %s <<\n", traverse->position, traverse->jump->position, traverse->onSpace);
+            else
+                fprintf(printTo, "%d || %d || %s\n", traverse->position, traverse->jump->position, traverse->onSpace);
+            }
+        traverse = traverse->next;
+    }
+    fprintf(printTo, "\n"); 
+}
+
+void playBoard(struct boardSpace* start, int size){
+    //Open File Connection
+    FILE *gameOutput = fopen("E:\\snakesandladdersgame.txt","w");
+    //I mixed it up with the rules of Monopoly but now that I've written it, you may optionally play with 2 die if you want
+    //However, as of now, the two die are completely useless and unused, thus, commented out of the code
+    //int die1 = 0;
+    //int die2 = 0;
+    struct boardSpace* currentPlace = start;
+    fprintf(gameOutput, "Let us start the game\n");
+    printBoardToFile(start, currentPlace->position, gameOutput);
+    int turnCount = 1;
+    while(currentPlace->next != NULL){
+        fprintf(gameOutput, "Turn %d\n", turnCount);
+        
+        //die1 = 1 + (rand() % 6);
+        //die2 = 1 + (rand() % 6);
+        
+        int movement = 1 + (rand() % 6);
+        
+        //int movement = die1 + die2;
+        fprintf(gameOutput, "Rolled %d\n", movement);
+        for(int i = 0; i < movement; i++){
+            //I don't play with the "Roll exactly as many spaces are left" rule
+            //since the assignment doesn't specify it is required, and because its a stupid rule
+            if(currentPlace->position != size)
+                currentPlace = currentPlace->next;
+        }
+        if(currentPlace->jump != NULL){
+            //Climb Ladder/Fall down Snake (And print board state pre-climb/fall)
+            printBoardToFile(start, currentPlace->position, gameOutput);
+            if(currentPlace->jump->position < currentPlace->position)
+                fprintf(gameOutput, "Falling down snake to Position %d\n", currentPlace->jump->position);
+            else
+                fprintf(gameOutput, "Climbing up ladder to Position %d\n", currentPlace->jump->position);
+            currentPlace = currentPlace->jump;
+        }
+    //Print Board State
+    printBoardToFile(start, currentPlace->position, gameOutput);
+    fprintf(gameOutput, "\n");
+    turnCount++;
+    }
+    fprintf(gameOutput, "Your winner!\n"); //[sic]
+    fclose(gameOutput);
+}
+
+int main(int argc, char *argv[])
+{
+    
+    //Variable Declaration and Declaring start board position
+    struct boardSpace start;
+    start.position = 1;
+    start.next = 0;
+    int numSnakes = 8;
+    int numLadder = 8;
+    
+    //Since I'm using OnlineGBD, making the entire program crash if I don't supply arugments would be INCREDIBLY annoying. Therefore, if arguments aren't matched, play with Default Settings (8 ladders, 8 snakes)
+    if(argc<2){
+        printf("ERROR! NOT ENOUGH ARGUMENTS SUPPLIED! PLAYING WITH DEFAULT SETTINGS!\n");
+    }else{
+        numSnakes = atoi(argv[1]);
+        numLadder = atoi(argv[2]);
+    }
+    
+    //Creating the board of size between 32 and 64
+    int numberNodes = 32 + (rand() % 33);
+    for(int i = 2; i <= numberNodes; i++){
+        add(&start, i);
+    }
+    
+    //Adding SNAKES
+    int snakesAdded = 0;
+    while(snakesAdded < numSnakes){
+        int positionToAdd = 3 + (rand() % numberNodes-3);
+        struct boardSpace* traverse = &start;
+        //Go to Space on Board
+        for(int i = 0; i < positionToAdd; i++)
+            traverse = traverse->next;
+        //Check that space doesn't already have snake/ladder, and isnt the start/finish of the board
+        if(traverse->jump == NULL && traverse->position != 1 && traverse->position != numberNodes){
+            snakesAdded++;
+            addSnake(traverse, &start);
+        }
+    }
+    
+    //Adding LADDERS
+    int laddersAdded = 0;
+    while(laddersAdded < numLadder){
+        int positionToAdd = 3 + (rand() % numberNodes-3);
+        struct boardSpace* traverse = &start;
+        //Go to Space on Board
+        for(int i = 0; i < positionToAdd; i++)
+            traverse = traverse->next;
+        //Check that space doesn't already have snake/ladder, and isnt the start/finish of the board
+        if(traverse->jump == NULL && traverse->position != 1 && traverse->position != numberNodes){
+            laddersAdded++;
+            addLadder(traverse, numberNodes);
+        }
+    }
+    
+    //This serves absolutely no purpose in the code apart from making me laugh. It works fine without it.
+    printf("ULTIMATE X-TREME SNAKES AND LADDERS 1983: WORLD CHAMPIONSHIP EDITION 5 TURBO & KNUCKLES\nFeaturing:\nDante from the Devil May Cry Series\nFunky Kong in New Funky Mode\nThe Teenage Mutant Ninja Turtles\nIdris Elba\nJohnny Cash\nSuper Mario (played by Chris Pratt)\nDavid Tennant, reprising his role as the 10th Doctor\nMy cousin Jake\nThe Avengers\nTobey\nClifford the Big Red Dog\nThe Hamburgler\nBig B\nThe A Team, on Friday\nPeggle 2\nPeewee Herman\nThe RTX 3080\nAlso Starring:\nJotaro Kujo\nMatt Mercer\nPanic! at the Disco\nJared Leto\nSherlock\nLeonard Nimoy\nThe Secret Life of Pets\nFive Seconds of Summer\nEggman\nGoro Majima\nSpiderman 3\nSam Raimi\nFreddy Fazbear\nCharles Entertainment Cheese\nGoofy\nThe Atari 2600\nand YOU, the player!\n");
+
+    //printBoard(&start);
+    
+    playBoard(&start, numberNodes);
+}
